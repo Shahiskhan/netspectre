@@ -2,6 +2,13 @@
 
 > **A Professional VS Code-Inspired Desktop Security & Diagnostic Workstation**
 
+## 📸 Application Screenshots
+
+<p align="center">
+  <img src="App%20Screenshots/extra%20tools.png" alt="NetSpectre Extra Tools & Side Notes" width="48%" />
+  <img src="App%20Screenshots/nslookup.png" alt="NetSpectre Terminal Diagnostics" width="48%" />
+</p>
+
 NetSpectre is a Windows desktop application for network diagnostics, security auditing, and authorized CTF workflows. Built with **Electron** and **React**, it runs supported tools inside an Alpine Linux Docker container named `netspectre-runner`, keeping their dependencies separate from the Windows host.
 
 ---
