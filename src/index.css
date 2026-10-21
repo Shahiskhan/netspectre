@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base resets ──────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background-color: #1e1e1e;
+  color: #cccccc;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Scrollbar styling ────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #424242;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555555;
+}
+
+/* ── xterm.js overrides ───────────────────────────────────────────────────── */
+.xterm {
+  height: 100%;
+  padding: 8px;
+}
+
+.xterm-viewport {
+  overflow-y: auto !important;
+}
+
+/* ── Drag region for frameless window ────────────────────────────────────── */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* ── Pulse animation for status indicator ────────────────────────────────── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+.pulse-dot {
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+/* ── Glow effect for active sidebar icon ─────────────────────────────────── */
+.icon-glow {
+  filter: drop-shadow(0 0 6px rgba(0, 122, 204, 0.7));
+}
+
+/* ── Resize handle ───────────────────────────────────────────────────────── */
+.resize-handle {
+  cursor: row-resize;
+  user-select: none;
+}
+
+/* ── Command preview syntax highlighting ─────────────────────────────────── */
+.cmd-command  { color: #4ec9b0; }
+.cmd-flag     { color: #9cdcfe; }
+.cmd-value    { color: #ce9178; }
+.cmd-domain   { color: #dcdcaa; }
