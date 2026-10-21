@@ -24,20 +24,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * @param {string[]} args - Literal arguments passed to the executable
    * @returns {Promise<{ success: boolean, reason?: string }>}
    */
-  runCommand: (command, args) =>
-    ipcRenderer.invoke('run-docker-command', { command, args }),
+  runCommand: (command, args, workspaceId) =>
+    ipcRenderer.invoke('run-docker-command', { command, args, workspaceId }),
 
   /**
    * Kill the currently running docker exec process.
    * @returns {Promise<{ success: boolean, reason?: string }>}
    */
-  stopCommand: () =>
-    ipcRenderer.invoke('stop-docker-command'),
+  stopCommand: (workspaceId) =>
+    ipcRenderer.invoke('stop-docker-command', { workspaceId }),
 
   /**
    * Subscribe to streamed terminal output from the main process.
    *
-   * @param {(entry: { type: string, data: string }) => void} callback
+   * @param {(entry: { type: string, data: string, workspaceId?: string }) => void} callback
    * @returns {() => void} unsubscribe function
    */
   onTerminalData: (callback) => {

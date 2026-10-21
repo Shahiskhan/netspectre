@@ -8,7 +8,7 @@ const isDev = process.env.NODE_ENV === 'development'
 
 // ── Docker configuration ───────────────────────────────────────────────────
 const DOCKER = {
-  IMAGE_NAME:     'netspectre-tools',
+  IMAGE_NAME:     'netspectre-runner',
   CONTAINER_NAME: 'netspectre-runner',
   DOCKERFILE_DIR: app.isPackaged
     ? path.join(process.resourcesPath, 'docker-context')
@@ -23,7 +23,9 @@ const ALLOWED_COMMANDS = new Set([
 let activeProcess = null
 let commandInProgress = false
 let stopRequested = false
+let activeCommandWorkspaceId = null
 let imageBuildPromise = null
+let dockerInitializationPromise = null
 let mainWindow    = null
 
 // ── Window creation ────────────────────────────────────────────────────────
@@ -34,6 +36,7 @@ function createWindow() {
     height: 800,
     minWidth:  900,
     minHeight: 600,
+    icon: path.join(__dirname, '../assets/icon.ico'),
     frame: false,
     backgroundColor: '#1e1e1e',
     webPreferences: {
@@ -55,7 +58,13 @@ function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null })
 }
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  createWindow()
+  ensureDockerReady().catch((err) => {
+    console.error('Docker initialization failed:', err)
+    sendOutput('error', `\r\n❌ Docker initialization failed: ${err.message}\r\n`)
+  })
+})
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
 
@@ -77,9 +86,9 @@ ipcMain.on('open:external',  (_, url) => shell.openExternal(url))
  * @param {'info'|'success'|'error'|'stdout'|'stderr'|'exit'|'cmd'} type
  * @param {string} data
  */
-function sendOutput(type, data) {
+function sendOutput(type, data, workspaceId = activeCommandWorkspaceId) {
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('terminal-output', { type, data })
+    mainWindow.webContents.send('terminal-output', { type, data, workspaceId })
   }
 }
 
@@ -95,6 +104,8 @@ function isValidCommandRequest(payload) {
   return payload &&
     typeof payload.command === 'string' &&
     ALLOWED_COMMANDS.has(payload.command) &&
+    typeof payload.workspaceId === 'string' &&
+    payload.workspaceId.length > 0 &&
     Array.isArray(payload.args) &&
     payload.args.length <= 128 &&
     payload.args.every((arg) => typeof arg === 'string' && arg.length <= 4096)
@@ -183,9 +194,9 @@ function buildImage() {
 async function containerIsRunning() {
   try {
     const { stdout } = await runDocker([
-      'inspect', '-f', '{{.State.Running}}', DOCKER.CONTAINER_NAME,
+      'ps', '-q', '-f', `name=${DOCKER.CONTAINER_NAME}`,
     ])
-    return stdout.trim() === 'true'
+    return stdout.trim().length > 0
   } catch {
     return false
   }
@@ -193,11 +204,11 @@ async function containerIsRunning() {
 
 // ── 5. Remove a stopped/exited container if it exists ─────────────────────
 async function removeStaleContainer() {
-  try {
-    await runDocker(['rm', '-f', DOCKER.CONTAINER_NAME])
-  } catch {
-    // Container didn't exist — that's fine
-  }
+  const { stdout } = await runDocker([
+    'ps', '-aq', '-f', `name=^/${DOCKER.CONTAINER_NAME}$`,
+  ])
+  const containerId = stdout.trim()
+  if (containerId) await runDocker(['rm', containerId])
 }
 
 // ── 6. Start the background container ─────────────────────────────────────
@@ -205,7 +216,8 @@ async function startContainer() {
   await removeStaleContainer()
   sendOutput('info', `🐳 Starting container '${DOCKER.CONTAINER_NAME}'...\r\n`)
   await runDocker([
-    'run', '-d', '--name', DOCKER.CONTAINER_NAME, '--rm', DOCKER.IMAGE_NAME,
+    'run', '-d', '--name', DOCKER.CONTAINER_NAME, DOCKER.IMAGE_NAME,
+    'tail', '-f', '/dev/null',
   ])
 
   sendOutput('success', `✅ Container '${DOCKER.CONTAINER_NAME}' is running.\r\n\r\n`)
@@ -216,7 +228,7 @@ function throwIfStopRequested() {
 }
 
 // ── 7. Full bootstrap: ensure Docker → image → container are all ready ─────
-async function ensureDockerReady() {
+async function initializeDocker() {
   // a) Docker daemon
   const dockerOk = await isDockerRunning()
   if (!dockerOk) {
@@ -246,6 +258,20 @@ async function ensureDockerReady() {
   throwIfStopRequested()
 }
 
+function ensureDockerReady() {
+  if (dockerInitializationPromise) return dockerInitializationPromise
+
+  const initialization = initializeDocker()
+  dockerInitializationPromise = initialization
+  const clearInitialization = () => {
+    if (dockerInitializationPromise === initialization) {
+      dockerInitializationPromise = null
+    }
+  }
+  initialization.then(clearInitialization, clearInitialization)
+  return initialization
+}
+
 // ── IPC: 'docker:status' — renderer can ask for current Docker state ───────
 ipcMain.handle('docker:status', async (event) => {
   assertTrustedSender(event)
@@ -268,23 +294,23 @@ ipcMain.handle('run-docker-command', async (event, payload) => {
   if (!isValidCommandRequest(payload)) {
     return { success: false, reason: 'Invalid command request' }
   }
-  const { command, args } = payload
+  const { command, args, workspaceId } = payload
   // Guard: reject if already running
   if (commandInProgress) {
-    sendOutput('error', '⚠️  A command is already running. Stop it first.\r\n')
     return { success: false, reason: 'busy' }
   }
 
   commandInProgress = true
   stopRequested = false
+  activeCommandWorkspaceId = workspaceId
   try {
     // Ensure Docker + image + container are ready (builds if needed)
     await ensureDockerReady()
     throwIfStopRequested()
 
     const displayCommand = [command, ...args].map((part) => JSON.stringify(part)).join(' ')
-    sendOutput('cmd', `$ ${displayCommand}\r\n`)
-    sendOutput('info', `─────────────────────────────────────────\r\n`)
+    sendOutput('cmd', `$ ${displayCommand}\r\n`, workspaceId)
+    sendOutput('info', `─────────────────────────────────────────\r\n`, workspaceId)
 
     // Execute the command inside the running container
     activeProcess = spawn(
@@ -302,18 +328,19 @@ ipcMain.handle('run-docker-command', async (event, payload) => {
       if (activeProcess === commandProcess) activeProcess = null
       commandInProgress = false
       stopRequested = false
+      activeCommandWorkspaceId = null
     }
 
     commandProcess.stdout.on('data', (data) => {
-      sendOutput('stdout', data)
+      sendOutput('stdout', data, workspaceId)
     })
 
     commandProcess.stderr.on('data', (data) => {
-      sendOutput('stderr', data)
+      sendOutput('stderr', data, workspaceId)
     })
 
     commandProcess.on('error', (err) => {
-      sendOutput('error', `\r\nProcess error: ${err.message}\r\n`)
+      sendOutput('error', `\r\nProcess error: ${err.message}\r\n`, workspaceId)
       finishCommand()
     })
 
@@ -321,25 +348,29 @@ ipcMain.handle('run-docker-command', async (event, payload) => {
       const msg = signal
         ? `\r\n⚡ Process killed (signal: ${signal})\r\n`
         : `\r\n─────────────────────────────────────────\r\nProcess exited with code ${code}\r\n`
-      sendOutput('exit', msg)
+      sendOutput('exit', msg, workspaceId)
       finishCommand()
     })
 
     return { success: true }
   } catch (err) {
-    sendOutput('error', `\r\n❌ ${err.message}\r\n`)
+    sendOutput('error', `\r\n❌ ${err.message}\r\n`, workspaceId)
     if (activeProcess && stopRequested) stopActiveProcess()
     commandInProgress = false
     stopRequested = false
+    activeCommandWorkspaceId = null
     return { success: false, reason: err.message }
   }
 })
 
 // ── IPC: 'stop-docker-command' — kill the active process ──────────────────
-ipcMain.handle('stop-docker-command', async (event) => {
+ipcMain.handle('stop-docker-command', async (event, payload) => {
   assertTrustedSender(event)
   if (!commandInProgress) {
     return { success: false, reason: 'No process running' }
+  }
+  if (!payload || payload.workspaceId !== activeCommandWorkspaceId) {
+    return { success: false, reason: 'No process running for this workspace' }
   }
 
   try {

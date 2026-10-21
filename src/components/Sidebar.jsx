@@ -1,9 +1,9 @@
 import React from 'react'
-import useStore, { TOOLS } from '@/store/useStore'
+import useStore, { TOOLS, selectActiveWorkspace } from '@/store/useStore'
 import { ToolIcon, IconSettings } from '@/components/icons/Icons'
 
 export default function Sidebar() {
-  const activeToolId = useStore((s) => s.activeToolId)
+  const activeToolId = useStore((s) => selectActiveWorkspace(s).activeTool)
   const setActiveToolId = useStore((s) => s.setActiveToolId)
 
   return (

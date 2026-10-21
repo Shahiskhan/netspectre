@@ -1,5 +1,5 @@
 import React from 'react'
-import useStore from '@/store/useStore'
+import useStore, { selectActiveWorkspace } from '@/store/useStore'
 
 const SCAN_TYPES = [
   { value: '-sS', title: 'SYN scan' },
@@ -12,7 +12,7 @@ const TIMING_TEMPLATES = ['-T1', '-T2', '-T3', '-T4', '-T5']
 const TOP_PORT_OPTIONS = ['100', '1000']
 
 export default function NmapControls() {
-  const opts = useStore((s) => s.toolOptions.nmap)
+  const opts = useStore((s) => selectActiveWorkspace(s).options.nmap)
   const setOpt = useStore((s) => s.setToolOption)
   const scanTypes = Array.isArray(opts.scanTypes)
     ? opts.scanTypes

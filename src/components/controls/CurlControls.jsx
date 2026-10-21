@@ -1,11 +1,11 @@
 import React from 'react'
-import useStore from '@/store/useStore'
+import useStore, { selectActiveWorkspace } from '@/store/useStore'
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD']
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH'])
 
 export default function CurlControls() {
-  const opts = useStore((s) => s.toolOptions.curl)
+  const opts = useStore((s) => selectActiveWorkspace(s).options.curl)
   const setOpt = useStore((s) => s.setToolOption)
 
   const set = (key, value) => setOpt('curl', key, value)

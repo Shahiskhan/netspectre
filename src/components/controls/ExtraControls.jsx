@@ -1,5 +1,5 @@
 import React from 'react'
-import useStore from '@/store/useStore'
+import useStore, { selectActiveWorkspace } from '@/store/useStore'
 
 const SUB_TOOLS = [
   { id: 'ping',       label: 'Ping',       description: 'ICMP echo test' },
@@ -11,7 +11,7 @@ const SUB_TOOLS = [
 ]
 
 export default function ExtraControls() {
-  const opts   = useStore((s) => s.toolOptions.extra)
+  const opts   = useStore((s) => selectActiveWorkspace(s).options.extra)
   const setOpt = useStore((s) => s.setToolOption)
 
   const set = (key, val) => setOpt('extra', key, val)

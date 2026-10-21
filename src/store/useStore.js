@@ -44,22 +44,8 @@ export const TOOLS = [
   },
 ]
 
-// ── Terminal log entry shape ──────────────────────────────────────────────────
-// { id: string, type: 'stdout'|'stderr'|'info'|'error'|'exit'|'cmd', data: string, ts: number }
-
-// ── Store ─────────────────────────────────────────────────────────────────────
-const useStore = create((set, get) => ({
-  // ── Active tool tab ──────────────────────────────────────────────────────
-  activeToolId: 'nmap',
-  setActiveToolId: (id) => set({ activeToolId: id }),
-  getActiveTool: () => TOOLS.find((t) => t.id === get().activeToolId),
-
-  // ── Target input ─────────────────────────────────────────────────────────
-  target: '',
-  setTarget: (target) => set({ target }),
-
-  // ── Per-tool option flags (keyed by toolId) ───────────────────────────────
-  toolOptions: {
+function createDefaultOptions() {
+  return {
     nmap: {
       scanTypes: ['-sV'],
       portMode: 'default',
@@ -70,8 +56,8 @@ const useStore = create((set, get) => ({
       osDetect: false,
       verbose: false,
     },
-    nslookup:  { type: 'A', server: '' },
-    dig:       { type: 'A', short: false, trace: false, noallAnswer: false },
+    nslookup: { type: 'A', server: '' },
+    dig: { type: 'A', short: false, trace: false, noallAnswer: false },
     curl: {
       method: 'GET',
       headers: [],
@@ -81,38 +67,114 @@ const useStore = create((set, get) => ({
       insecure: false,
       verbose: false,
     },
-    extra:     { subTool: 'ping', count: '4', ttl: '', ncPort: '' },
+    extra: { subTool: 'ping', count: '4', ttl: '', ncPort: '' },
+  }
+}
+
+function createWorkspace() {
+  return {
+    id: crypto.randomUUID(),
+    title: 'Nmap',
+    activeTool: 'nmap',
+    targetInput: '',
+    options: createDefaultOptions(),
+    commandPreview: '',
+    terminalOutput: [],
+    isRunning: false,
+  }
+}
+
+export function selectActiveWorkspace(state) {
+  return state.workspaceTabs.find((tab) => tab.id === state.activeWorkspaceId)
+}
+
+function updateWorkspace(set, get, workspaceId, update) {
+  const targetId = workspaceId ?? get().activeWorkspaceId
+  set((state) => ({
+    workspaceTabs: state.workspaceTabs.map((tab) => (
+      tab.id === targetId ? update(tab) : tab
+    )),
+  }))
+}
+
+const initialWorkspace = createWorkspace()
+
+const useStore = create((set, get) => ({
+  workspaceTabs: [initialWorkspace],
+  activeWorkspaceId: initialWorkspace.id,
+
+  getActiveWorkspace: () => selectActiveWorkspace(get()),
+  setActiveWorkspace: (id) => {
+    if (get().workspaceTabs.some((tab) => tab.id === id)) {
+      set({ activeWorkspaceId: id })
+    }
   },
-  setToolOption: (toolId, key, value) =>
+  createWorkspace: () => {
+    const workspace = createWorkspace()
     set((state) => ({
-      toolOptions: {
-        ...state.toolOptions,
-        [toolId]: { ...state.toolOptions[toolId], [key]: value },
+      workspaceTabs: [...state.workspaceTabs, workspace],
+      activeWorkspaceId: workspace.id,
+    }))
+    return workspace.id
+  },
+  closeWorkspace: (id) => {
+    const state = get()
+    const workspace = state.workspaceTabs.find((tab) => tab.id === id)
+    if (!workspace || workspace.isRunning || state.workspaceTabs.length <= 1) return false
+
+    const remaining = state.workspaceTabs.filter((tab) => tab.id !== id)
+    const nextActiveId = state.activeWorkspaceId === id
+      ? remaining[Math.min(state.workspaceTabs.indexOf(workspace), remaining.length - 1)].id
+      : state.activeWorkspaceId
+    set({ workspaceTabs: remaining, activeWorkspaceId: nextActiveId })
+    return true
+  },
+
+  setActiveToolId: (activeTool) =>
+    updateWorkspace(set, get, null, (tab) => {
+      const tool = TOOLS.find((item) => item.id === activeTool)
+      return {
+        ...tab,
+        activeTool,
+        title: `${tool?.label ?? 'Workspace'}${tab.targetInput ? ` - ${tab.targetInput}` : ''}`,
+      }
+    }),
+  setTarget: (targetInput) =>
+    updateWorkspace(set, get, null, (tab) => {
+      const tool = TOOLS.find((item) => item.id === tab.activeTool)
+      return {
+        ...tab,
+        targetInput,
+        title: `${tool?.label ?? 'Workspace'}${targetInput ? ` - ${targetInput}` : ''}`,
+      }
+    }),
+  setToolOption: (toolId, key, value) =>
+    updateWorkspace(set, get, null, (tab) => ({
+      ...tab,
+      options: {
+        ...tab.options,
+        [toolId]: { ...tab.options[toolId], [key]: value },
       },
     })),
-
-  // ── Command preview ───────────────────────────────────────────────────────
-  commandPreview: '',
-  setCommandPreview: (cmd) => set({ commandPreview: cmd }),
-
-  // ── Running state ─────────────────────────────────────────────────────────
-  isRunning: false,
-  setIsRunning: (v) => set({ isRunning: v }),
-
-  // ── Terminal output log ───────────────────────────────────────────────────
-  terminalLines: [],
-  appendTerminalLine: (entry) =>
-    set((state) => ({
-      terminalLines: [
-        ...state.terminalLines,
+  setCommandPreview: (commandPreview) =>
+    updateWorkspace(set, get, null, (tab) => ({ ...tab, commandPreview })),
+  setIsRunning: (isRunning, workspaceId) =>
+    updateWorkspace(set, get, workspaceId, (tab) => ({ ...tab, isRunning })),
+  appendTerminalLine: (entry, workspaceId) =>
+    updateWorkspace(set, get, workspaceId, (tab) => ({
+      ...tab,
+      terminalOutput: [
+        ...tab.terminalOutput,
         { id: crypto.randomUUID(), ts: Date.now(), ...entry },
       ],
     })),
-  clearTerminal: () => set({ terminalLines: [] }),
+  clearTerminal: (workspaceId) =>
+    updateWorkspace(set, get, workspaceId, (tab) => ({ ...tab, terminalOutput: [] })),
 
-  // ── Terminal split height (px from bottom) ────────────────────────────────
+  // ── Terminal split height (px from bottom) ───────────────────────────────
   terminalHeight: 280,
-  setTerminalHeight: (h) => set({ terminalHeight: Math.max(120, Math.min(h, 700)) }),
+  setTerminalHeight: (height) =>
+    set({ terminalHeight: Math.max(120, Math.min(height, 700)) }),
 }))
 
 export default useStore

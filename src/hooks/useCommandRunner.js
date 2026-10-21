@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useRef } from 'react'
-import useStore from '@/store/useStore'
+import useStore, { selectActiveWorkspace } from '@/store/useStore'
 import { buildCommand } from '@/utils/commandBuilder'
 
 const isElectron = typeof window !== 'undefined' && !!window.electronAPI
@@ -15,10 +15,12 @@ const isElectron = typeof window !== 'undefined' && !!window.electronAPI
  * Returns { run, stop }
  */
 export function useCommandRunner() {
-  const activeToolId  = useStore((s) => s.activeToolId)
-  const target        = useStore((s) => s.target)
-  const toolOptions   = useStore((s) => s.toolOptions)
-  const isRunning     = useStore((s) => s.isRunning)
+  const workspaceId   = useStore((s) => s.activeWorkspaceId)
+  const workspace     = useStore(selectActiveWorkspace)
+  const activeToolId  = workspace.activeTool
+  const target        = workspace.targetInput
+  const toolOptions   = workspace.options
+  const isRunning     = workspace.isRunning
   const setIsRunning  = useStore((s) => s.setIsRunning)
   const appendLine    = useStore((s) => s.appendTerminalLine)
 
@@ -30,12 +32,16 @@ export function useCommandRunner() {
     if (!isElectron) return
 
     const unsub = window.electronAPI.onTerminalData((entry) => {
-      // Map Docker main-process types directly to store types
-      appendLine({ type: entry.type, data: entry.data })
+      if (!entry.workspaceId) return
+
+      appendLine(
+        { type: entry.type, data: entry.data },
+        entry.workspaceId
+      )
 
       // Auto-clear running flag on exit events
       if (entry.type === 'exit' || entry.type === 'error') {
-        setIsRunning(false)
+        setIsRunning(false, entry.workspaceId)
       }
     })
 
@@ -52,9 +58,10 @@ export function useCommandRunner() {
   const run = useCallback(async () => {
     if (isRunning) return
 
+    const appendForWorkspace = (entry) => appendLine(entry, workspaceId)
     const trimmedTarget = target.trim()
     if (!trimmedTarget) {
-      appendLine({
+      appendForWorkspace({
         type: 'error',
         data: '⚠  No target specified. Please enter an IP address or domain.\n',
       })
@@ -63,56 +70,55 @@ export function useCommandRunner() {
 
     const { command, args, error } = buildCommand(activeToolId, trimmedTarget, toolOptions)
     if (error) {
-      appendLine({ type: 'error', data: `⚠ ${error}\n` })
+      appendForWorkspace({ type: 'error', data: `⚠ ${error}\n` })
       return
     }
     if (!command) return
 
     const fullCommand = [command, ...args].join(' ')
 
-    setIsRunning(true)
+    setIsRunning(true, workspaceId)
 
     if (isElectron) {
       // ── Real Docker execution ──────────────────────────────────────────
       try {
-        const result = await window.electronAPI.runCommand(command, args)
+        const result = await window.electronAPI.runCommand(command, args, workspaceId)
         if (!result.success) {
-          if (result.reason === 'Invalid command request') {
-            appendLine({ type: 'error', data: `\r\n${result.reason}\n` })
-          }
-          setIsRunning(false)
+          appendForWorkspace({ type: 'error', data: `\r\nUnable to run command: ${result.reason}\n` })
+          setIsRunning(false, workspaceId)
         }
       } catch (error) {
-        appendLine({ type: 'error', data: `\r\nDocker command failed: ${error.message}\n` })
-        setIsRunning(false)
+        appendForWorkspace({ type: 'error', data: `\r\nDocker command failed: ${error.message}\n` })
+        setIsRunning(false, workspaceId)
       }
       // isRunning is cleared by the onTerminalData 'exit' listener above
     } else {
       // ── Browser simulation mode ────────────────────────────────────────
-      appendLine({ type: 'cmd',  data: `$ ${fullCommand}\n` })
-      appendLine({ type: 'info', data: `[Browser mode] Simulating Docker output...\n` })
-      await simulateBrowserOutput(activeToolId, fullCommand, appendLine)
-      setIsRunning(false)
+      appendForWorkspace({ type: 'cmd',  data: `$ ${fullCommand}\n` })
+      appendForWorkspace({ type: 'info', data: `[Browser mode] Simulating Docker output...\n` })
+      await simulateBrowserOutput(activeToolId, fullCommand, appendForWorkspace)
+      setIsRunning(false, workspaceId)
     }
-  }, [activeToolId, target, toolOptions, isRunning, appendLine, setIsRunning])
+  }, [activeToolId, target, toolOptions, isRunning, workspaceId, appendLine, setIsRunning])
 
   // ── stop() ───────────────────────────────────────────────────────────────
   const stop = useCallback(async () => {
     if (!isRunning) return
+    const appendForWorkspace = (entry) => appendLine(entry, workspaceId)
 
     try {
       if (isElectron) {
-        const result = await window.electronAPI.stopCommand()
+        const result = await window.electronAPI.stopCommand(workspaceId)
         if (!result.success) {
-          appendLine({ type: 'error', data: `\r\nUnable to stop command: ${result.reason}\n` })
+          appendForWorkspace({ type: 'error', data: `\r\nUnable to stop command: ${result.reason}\n` })
         }
       }
     } catch (error) {
-      appendLine({ type: 'error', data: `\r\nUnable to stop command: ${error.message}\n` })
+      appendForWorkspace({ type: 'error', data: `\r\nUnable to stop command: ${error.message}\n` })
     } finally {
-      setIsRunning(false)
+      setIsRunning(false, workspaceId)
     }
-  }, [isRunning, appendLine, setIsRunning])
+  }, [isRunning, workspaceId, appendLine, setIsRunning])
 
   return { run, stop }
 }

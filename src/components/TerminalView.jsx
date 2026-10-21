@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useCallback, useMemo, useState } from 'react'
-import useStore from '@/store/useStore'
+import useStore, { selectActiveWorkspace } from '@/store/useStore'
 import { IconTerminal, IconCopy } from '@/components/icons/Icons'
 
 /**
@@ -9,9 +9,9 @@ import { IconTerminal, IconCopy } from '@/components/icons/Icons'
  * gives us full React control and CSS theming without canvas complexity.
  */
 export default function TerminalView({ height }) {
-  const lines       = useStore((s) => s.terminalLines)
+  const lines       = useStore((s) => selectActiveWorkspace(s).terminalOutput)
   const clearLines  = useStore((s) => s.clearTerminal)
-  const isRunning   = useStore((s) => s.isRunning)
+  const isRunning   = useStore((s) => selectActiveWorkspace(s).isRunning)
   const [copyStatus, setCopyStatus] = useState('')
   const [filter, setFilter] = useState('')
   const bodyRef     = useRef(null)
@@ -159,7 +159,7 @@ export default function TerminalView({ height }) {
       <div
         ref={bodyRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-3 font-mono text-xs leading-relaxed"
+        className="flex-1 overflow-y-auto p-3 font-mono text-xs leading-relaxed select-text"
         style={{ backgroundColor: '#0c0c0c' }}
       >
         {lines.length === 0 ? (
@@ -236,7 +236,7 @@ function TerminalLine({ line }) {
 
       {/* Content */}
       <span
-        className="flex-1 break-all whitespace-pre-wrap"
+        className="flex-1 break-all whitespace-pre-wrap select-text"
         style={{ color: style.color }}
       >
         {line.data}

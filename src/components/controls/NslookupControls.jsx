@@ -1,10 +1,10 @@
 import React from 'react'
-import useStore from '@/store/useStore'
+import useStore, { selectActiveWorkspace } from '@/store/useStore'
 
 const RECORD_TYPES = ['A', 'AAAA', 'MX', 'NS', 'TXT', 'SOA', 'ANY']
 
 export default function NslookupControls() {
-  const opts   = useStore((s) => s.toolOptions.nslookup)
+  const opts   = useStore((s) => selectActiveWorkspace(s).options.nslookup)
   const setOpt = useStore((s) => s.setToolOption)
 
   const set = (key, val) => setOpt('nslookup', key, val)

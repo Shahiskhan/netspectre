@@ -1,34 +1,90 @@
 import React from 'react'
-import useStore from '@/store/useStore'
+import useStore, { TOOLS } from '@/store/useStore'
 import ControlPanel  from './ControlPanel'
 import TerminalView  from './TerminalView'
 import ResizeHandle  from './ResizeHandle'
+import SideNotesPanel from './SideNotesPanel'
 
 /**
- * MainWorkspace is the right-hand content area.
- * It contains:
- *  - ControlPanel (tool header + target input + tool controls + preview strip)
- *  - ResizeHandle (drag separator)
- *  - TerminalView (output panel)
+ * MainWorkspace contains the workspace tabs, diagnostics area, and notes column.
  */
 export default function MainWorkspace() {
   const terminalHeight = useStore((s) => s.terminalHeight)
+  const tabs = useStore((s) => s.workspaceTabs)
+  const activeWorkspaceId = useStore((s) => s.activeWorkspaceId)
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden bg-vscode-bg">
-      {/* Upper area: ControlPanel (takes remaining vertical space) */}
-      <div className="flex flex-col" style={{ flex: '1 1 auto', overflow: 'hidden', minHeight: 0 }}>
-        <ControlPanel />
+    <div className="flex flex-1 min-w-0 flex-col overflow-hidden bg-vscode-bg">
+      <div className="flex h-9 shrink-0 items-stretch border-b border-vscode-border bg-vscode-titlebar">
+        <div className="flex min-w-0 flex-1 overflow-x-auto">
+          {tabs.map((tab, index) => {
+            const isActive = activeWorkspaceId === tab.id
+            const title = tab.title || TOOLS.find((item) => item.id === tab.activeTool)?.label || 'Workspace'
 
-        {/* Placeholder / welcome content in the editor area */}
-        <EditorArea />
+            return (
+              <div
+                key={tab.id}
+                className={`group relative flex min-w-0 max-w-64 shrink-0 items-center border-r border-vscode-border
+                  ${isActive ? 'bg-vscode-bg text-vscode-textActive' : 'text-vscode-textDim hover:bg-vscode-hover'}`}
+              >
+                {tab.isRunning && (
+                  <span
+                    className="ml-2 h-1.5 w-1.5 shrink-0 rounded-full bg-vscode-green"
+                    title="Command running in this workspace"
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={() => useStore.getState().setActiveWorkspace(tab.id)}
+                  title={title}
+                  className="min-w-0 flex-1 truncate px-3 text-left text-xs"
+                >
+                  {title}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => useStore.getState().closeWorkspace(tab.id)}
+                  disabled={tab.isRunning || tabs.length === 1}
+                  title={tab.isRunning ? 'Stop the running command before closing this tab' : 'Close workspace'}
+                  aria-label={`Close ${title}`}
+                  className="mr-1 rounded px-1 text-xs text-vscode-textDim
+                             hover:bg-vscode-border hover:text-vscode-textActive
+                             disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  ×
+                </button>
+                {isActive && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-vscode-active" />
+                )}
+                <span className="sr-only">Tab {index + 1}</span>
+              </div>
+            )
+          })}
+        </div>
+        <button
+          type="button"
+          onClick={() => useStore.getState().createWorkspace()}
+          title="Create workspace tab"
+          aria-label="Create workspace tab"
+          className="w-9 shrink-0 text-lg text-vscode-textDim hover:bg-vscode-hover
+                     hover:text-vscode-textActive"
+        >
+          +
+        </button>
       </div>
 
-      {/* Drag handle */}
-      <ResizeHandle />
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="flex flex-col" style={{ flex: '1 1 auto', overflow: 'hidden', minHeight: 0 }}>
+            <ControlPanel />
+            <EditorArea />
+          </div>
 
-      {/* Terminal panel: fixed height, scrollable internally */}
-      <TerminalView height={terminalHeight} />
+          <ResizeHandle />
+          <TerminalView height={terminalHeight} />
+        </section>
+        <SideNotesPanel />
+      </div>
     </div>
   )
 }

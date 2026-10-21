@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import useStore, { TOOLS } from '@/store/useStore'
+import useStore, { TOOLS, selectActiveWorkspace } from '@/store/useStore'
 import { buildCommand } from '@/utils/commandBuilder'
 import { ToolIcon, IconRun, IconStop } from '@/components/icons/Icons'
 import { useCommandRunner } from '@/hooks/useCommandRunner'
@@ -19,13 +19,13 @@ const CONTROLS_MAP = {
 }
 
 export default function ControlPanel() {
-  const activeToolId      = useStore((s) => s.activeToolId)
-  const target            = useStore((s) => s.target)
+  const activeToolId      = useStore((s) => selectActiveWorkspace(s).activeTool)
+  const target            = useStore((s) => selectActiveWorkspace(s).targetInput)
   const setTarget         = useStore((s) => s.setTarget)
-  const toolOptions       = useStore((s) => s.toolOptions)
-  const commandPreview    = useStore((s) => s.commandPreview)
+  const toolOptions       = useStore((s) => selectActiveWorkspace(s).options)
+  const commandPreview    = useStore((s) => selectActiveWorkspace(s).commandPreview)
   const setCommandPreview = useStore((s) => s.setCommandPreview)
-  const isRunning         = useStore((s) => s.isRunning)
+  const isRunning         = useStore((s) => selectActiveWorkspace(s).isRunning)
 
   const tool         = TOOLS.find((t) => t.id === activeToolId)
   const ToolControls = CONTROLS_MAP[activeToolId] ?? null

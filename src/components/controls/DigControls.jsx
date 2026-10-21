@@ -1,10 +1,10 @@
 import React from 'react'
-import useStore from '@/store/useStore'
+import useStore, { selectActiveWorkspace } from '@/store/useStore'
 
 const RECORD_TYPES = ['A', 'MX', 'TXT', 'NS']
 
 export default function DigControls() {
-  const opts   = useStore((s) => s.toolOptions.dig)
+  const opts   = useStore((s) => selectActiveWorkspace(s).options.dig)
   const setOpt = useStore((s) => s.setToolOption)
 
   const set = (key, val) => setOpt('dig', key, val)

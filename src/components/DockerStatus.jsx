@@ -49,11 +49,11 @@ export default function DockerStatus() {
   } else if (!status.imageBuilt) {
     dot   = 'bg-yellow-400'
     label = 'Image needed'
-    title = 'Image will be built on first Run'
+    title = 'Image is being initialized automatically'
   } else if (!status.containerUp) {
     dot   = 'bg-yellow-400'
     label = 'Container stopped'
-    title = 'Container will auto-start on first Run'
+    title = 'Container is being initialized automatically'
   } else {
     dot   = 'bg-green-400'
     label = 'Container ready'

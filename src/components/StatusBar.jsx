@@ -1,11 +1,11 @@
 import React from 'react'
-import useStore, { TOOLS } from '@/store/useStore'
+import useStore, { TOOLS, selectActiveWorkspace } from '@/store/useStore'
 
 export default function StatusBar() {
-  const activeToolId = useStore((s) => s.activeToolId)
-  const target       = useStore((s) => s.target)
-  const isRunning    = useStore((s) => s.isRunning)
-  const lines        = useStore((s) => s.terminalLines)
+  const activeToolId = useStore((s) => selectActiveWorkspace(s).activeTool)
+  const target       = useStore((s) => selectActiveWorkspace(s).targetInput)
+  const isRunning    = useStore((s) => selectActiveWorkspace(s).isRunning)
+  const lines        = useStore((s) => selectActiveWorkspace(s).terminalOutput)
 
   const tool = TOOLS.find((t) => t.id === activeToolId)
 

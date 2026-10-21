@@ -1,11 +1,12 @@
 import React from 'react'
-import useStore, { TOOLS } from '@/store/useStore'
+import useStore, { TOOLS, selectActiveWorkspace } from '@/store/useStore'
 import DockerStatus from '@/components/DockerStatus'
+import logo from '@/assets/logo.png'
 
 const isElectron = typeof window !== 'undefined' && !!window.electronAPI
 
 export default function TitleBar() {
-  const activeToolId = useStore((s) => s.activeToolId)
+  const activeToolId = useStore((s) => selectActiveWorkspace(s).activeTool)
   const tool = TOOLS.find((t) => t.id === activeToolId)
 
   const minimize = () => isElectron && window.electronAPI.window.minimize()
@@ -20,12 +21,7 @@ export default function TitleBar() {
       {/* Left: App branding */}
       <div className="no-drag flex items-center h-full">
         <div className="flex items-center gap-2 px-4">
-          {/* Logo mark */}
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <rect x="1" y="1" width="14" height="14" rx="3" fill="#007acc" />
-            <path d="M4 11 L7 5 L8.5 8.5 L10 6.5 L12 11"
-                  stroke="white" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-          </svg>
+          <img src={logo} alt="" className="h-7 w-7 object-contain" />
           <span className="text-xs font-semibold text-vscode-textActive tracking-wide">
             NETSPECTRE
           </span>

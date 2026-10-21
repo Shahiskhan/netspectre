@@ -39,6 +39,7 @@
     "appId": "com.netspectre.desktop",
     "productName": "NetSpectre",
     "win": {
+      "icon": "assets/icon.ico",
       "target": "nsis"
     },
     "directories": {
